@@ -26,14 +26,32 @@ don't want to move.
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    B[Borrower] -->|deposit collateral + buffer| SV[shield-vault.clar]
+    SV -->|deposit + borrow as vault principal| Z[Zest Stacks Market V2]
+    K[Keeper] -->|read Health Factor| Z
+    K -->|keeper-rescue when trigger breached| SV
+    SV -->|partial repay + capped bounty| Z
+    SR[shield-registry.clar<br/>markets, risk params] -.->|config| SV
+    W[Wallets: Leather / Xverse / Asigna] -.->|SDK + alerts| SV
 ```
-User ──deposit sBTC──▶ shield-vault.clar ──deposit + borrow──▶ Zest V2 market
-                          │  (vault is the position principal)
-                          │
-Keeper bot (off-chain) ◀──read-only Health Factor + trigger check──┐
-        │                                                          │
-        └──trigger breached──▶ keeper-rescue tx──▶ partial repay   │
-                                + capped bounty (2%)               │
+
+```mermaid
+sequenceDiagram
+    participant K as Keeper
+    participant Z as Zest V2
+    participant SV as shield-vault
+
+    K->>Z: read Health Factor
+    Z-->>K: HF below user trigger
+    K->>SV: keeper-rescue(owner, repay-amount)
+    SV->>Z: repay-debt(vault principal)
+    alt HF restored
+        SV-->>K: ok + capped bounty
+    else HF not restored
+        SV-->>K: revert u104 - atomic
+    end
 ```
 
 - **Vault-as-principal:** Zest V2's `borrow` takes the user as a parameter
@@ -44,6 +62,9 @@ Keeper bot (off-chain) ◀──read-only Health Factor + trigger check──┐
 - **Safety:** post-rescue Health Factor must be ≥ trigger or the whole tx
   reverts; buffer capped at 10% of borrow; bounty capped at 2%; no admin key,
   no upgrade path
+
+**Full architecture** — component, contract, keeper-bot, state and sequence
+diagrams: [`docs/architecture.md`](docs/architecture.md)
 
 ## Contracts
 
@@ -84,6 +105,8 @@ and proves the protection mechanics end-to-end:
 
 ## Docs
 
+- `docs/architecture.md` — full architecture: component, contract, keeper-bot,
+  vault lifecycle and sequence diagrams
 - `docs/technical-spec.md` — architecture, Zest V2 integration facts, safety
 - `docs/research-notes.md` — ecosystem research: why this gap exists, Zest V2
   liquidation mechanics, keeper infrastructure state, project landscape

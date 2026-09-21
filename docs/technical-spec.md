@@ -1,4 +1,4 @@
-# TECHNICAL SPEC — Shield Vaults Vaults v0.1
+# TECHNICAL SPEC — Shield Vaults v0.1
 Sep 21, 2026
 
 ## Goal
@@ -11,15 +11,8 @@ via permissionless keepers, vault-held positions, and a bounty economy.
 - Granite: milestone 4 (stretch)
 
 ## System architecture
-```
-User ──deposit sBTC──▶ shield-vault.clar ──collateral-add + borrow──▶ Zest V2 market
-                          │  (vault is the position principal)
-                          │
-Keeper bot (off-chain) ◀──read-only health + trigger check──┐
-        │                                                   │
-        └──trigger breached──▶ keeper calls shield-vault──▶ partial repay
-                                (uses vault's buffer)       + keeper bounty
-```
+Component, contract, keeper-bot, lifecycle and sequence diagrams:
+[`architecture.md`](architecture.md).
 
 ## Contracts
 ### 1. shield-vault.clar (core)
