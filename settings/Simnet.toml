@@ -1,0 +1,25 @@
+[network]
+name = "simnet"
+epoch = 3.0
+
+[network.bitcoin]
+enabled = false
+
+[accounts.deployer]
+mnemonic = "manage crawl dolphin ability wagon olympic loan topple climb abandon author fiction"
+balance = 100_000_000_000_000
+
+[accounts.wallet_1]
+mnemonic = "small sing wrist miss visit oven merry taxi document dragon board already"
+balance = 100_000_000_000_000
+
+[accounts.wallet_2]
+mnemonic = "clap cruise buddy what hunt space comic outside lamp gift profit false"
+balance = 100_000_000_000_000
+
+[accounts.wallet_3]
+mnemonic = "present foam reflect tiny leisure throw ill various peace diet silly huge"
+balance = 100_000_000_000_000
+
+[devnet]
+pox_stacking_orders = []

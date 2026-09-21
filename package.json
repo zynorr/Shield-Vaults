@@ -1,0 +1,22 @@
+{
+    "name": "stacks-shield-vaults",
+    "version": "1.0.0",
+    "description": "**Liquidation protection vaults for Stacks lending protocols.**",
+    "main": "index.js",
+    "directories": {
+        "doc": "docs"
+    },
+    "scripts": {
+        "test": "vitest run"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "devDependencies": {
+        "@hirosystems/clarinet-sdk": "^3.8.1",
+        "@scure/bip39": "^2.4.0",
+        "@stacks/clarinet-sdk": "^3.24.0",
+        "vitest": "^5.0.1"
+    }
+}

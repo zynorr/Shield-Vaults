@@ -1,0 +1,19 @@
+[project]
+name = "stacks-shield-vaults"
+description = "Liquidation protection vaults for Stacks lending protocols — permissionless keepers, vault-held positions, bounty economy."
+authors = []
+telemetry = true
+cache_dir = ".cache"
+requirements = []
+
+[contracts.shield-vault]
+path = "contracts/shield-vault.clar"
+clarity_version = 2
+epoch = 3.0
+
+[repl.chainhook]
+enabled = false
+
+[repl.contracts]
+
+[repl.scripts]

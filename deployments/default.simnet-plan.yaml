@@ -1,0 +1,47 @@
+id: 0
+name: Simulated deployment, used as a default for `clarinet console`, `clarinet test` and `clarinet check`
+network: simnet
+genesis:
+  wallets:
+  - name: deployer
+    address: ST1XKEWZJPHCHX465PK7X84YFZBP3GYZMWQY7WSNC
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_1
+    address: STZ1QFQD8KNF2J5QKF3Y2HD25109VSCAYQYZRJ3N
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_2
+    address: ST3ZS6R6BYXVHB2KDX39YXNH621WHYPGJ1AP2XFCT
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_3
+    address: ST25N2EFVSN0CAA502Q8HSE8357WKV4NZRS4SH896
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  contracts:
+  - genesis
+  - lockup
+  - bns
+  - cost-voting
+  - costs
+  - pox
+  - costs-2
+  - pox-2
+  - costs-3
+  - pox-3
+  - pox-4
+  - signers
+  - signers-voting
+  - costs-4
+  - pox-5
+plan:
+  batches:
+  - id: 0
+    transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: shield-vault
+      emulated-sender: ST1XKEWZJPHCHX465PK7X84YFZBP3GYZMWQY7WSNC
+      path: contracts/shield-vault.clar
+      clarity-version: 2
+    epoch: '3.0'

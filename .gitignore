@@ -1,0 +1,19 @@
+# Clarinet
+.cache/
+target/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local tools (clarinet binary)
+.tools/
+
+# Private working files (not part of the project)
+private/
+
+# Logs
+*.log
