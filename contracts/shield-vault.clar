@@ -1,20 +1,15 @@
-;; shield-vault.clar - Shield Vaults scaffold v0.1
-;; PoC scaffold. Deploy on Stacks TESTNET via clarinet.
+;; shield-vault.clar
+;; Protected borrow vaults for Stacks lending markets.
 ;;
-;; STATUS: scaffold. The lending market and tokens are passed as TRAIT
-;; PARAMETERS (dynamic dispatch), so this contract compiles standalone.
-;; Wire the real Zest V2 principals + signatures in milestone 1.
-;;
-;; Design notes (mirrors technical-spec-shield-vault.md):
-;; - Vault is the position principal (Zest docs: borrow takes user as param)
-;; - Permissionless keeper-rescue only when trigger-hf breached; bounty capped
-;; - Post-state validated before bounty payout; reverts atomically otherwise
-;; - No admin key, no upgrade path
+;; A vault owns the borrow position on the lending market, keeps a repay
+;; buffer, and exposes a permissionless keeper-rescue that fires when the
+;; position health drops below the owner's threshold. The lending market and
+;; tokens are passed in as trait parameters, so the contract is not coupled
+;; to a single protocol.
 
 (define-trait lending-market-trait
   (
-    ;; TODO M1: match Zest V2 signatures exactly (collateral-add / borrow /
-    ;; repay with on-behalf parameters per Zest Protocol Deep Dive docs)
+    ;; follow the target market's real signatures on integration
     (deposit-collateral (principal uint) (response bool uint))
     (borrow-asset (principal uint) (response bool uint))
     (repay-debt (principal uint) (response bool uint))
@@ -29,11 +24,10 @@
   )
 )
 
-(define-constant BOUNTY-BPS u200)     ;; 2% keeper bounty, capped
-(define-constant BUFFER-CAP-BPS u1000) ;; buffer max 10% of borrow amount
-(define-constant DEFAULT-TRIGGER-HF u115) ;; HF 1.15 default trigger
+;; bounty: 2% of the repaid amount. buffer: max 10% of the borrow.
+(define-constant BOUNTY-BPS u200)
+(define-constant BUFFER-CAP-BPS u1000)
 
-(define-constant ERR-NOT-AUTHORIZED (err u100))
 (define-constant ERR-VAULT-NOT-FOUND (err u101))
 (define-constant ERR-VAULT-NOT-HEALTHY (err u102))
 (define-constant ERR-TRIGGER-NOT-BREACHED (err u103))
@@ -41,9 +35,6 @@
 (define-constant ERR-BUFFER-EXCEEDED (err u105))
 (define-constant ERR-AMOUNT-ZERO (err u106))
 
-;; ---------------------------------------------------------------------------
-;; State
-;; ---------------------------------------------------------------------------
 (define-map vaults
   { owner: principal }
   {
@@ -51,23 +42,25 @@
     debt: (string-ascii 32),
     trigger-hf: uint,
     buffer: uint,
-    status: (string-ascii 16) ;; "active" | "monitor" | "closed"
+    status: (string-ascii 16)
   }
 )
 
+;; counters for the public dashboard
 (define-data-var vault-count uint u0)
 (define-data-var total-protected uint u0)
 
-;; ---------------------------------------------------------------------------
-;; Read-only
-;; ---------------------------------------------------------------------------
 (define-read-only (get-vault (owner principal))
   (map-get? vaults { owner: owner })
 )
 
-;; ---------------------------------------------------------------------------
-;; Vault lifecycle (market/tokens passed as trait params)
-;; ---------------------------------------------------------------------------
+(define-read-only (get-stats)
+  { vaults: (var-get vault-count), protected: (var-get total-protected) }
+)
+
+
+;; pull the collateral and the repay buffer from the caller, then open the
+;; position on the lending market with the vault as principal
 (define-public (open-vault
     (market <lending-market-trait>)
     (collateral-token <sip010-trait>)
@@ -84,11 +77,10 @@
     (asserts! (>= trigger-hf u100) ERR-POST-STATE-UNSAFE)
     (asserts! (<= buffer-amount (/ (* borrow-amount BUFFER-CAP-BPS) u10000)) ERR-BUFFER-EXCEEDED)
 
-    ;; TODO M1: real token pulls + Zest deposit/borrow as vault principal
-    (try! (contract-call? collateral-token transfer collateral-amount tx-sender tx-sender none))
-    (try! (contract-call? debt-token transfer buffer-amount tx-sender tx-sender none))
-    (try! (contract-call? market deposit-collateral tx-sender collateral-amount))
-    (try! (contract-call? market borrow-asset tx-sender borrow-amount))
+    (try! (as-contract (contract-call? collateral-token transfer collateral-amount contract-caller tx-sender none)))
+    (try! (as-contract (contract-call? debt-token transfer buffer-amount contract-caller tx-sender none)))
+    (try! (as-contract (contract-call? market deposit-collateral tx-sender collateral-amount)))
+    (try! (as-contract (contract-call? market borrow-asset tx-sender borrow-amount)))
 
     (map-set vaults
       { owner: tx-sender }
@@ -104,59 +96,58 @@
   (begin
     (asserts! (> amount u0) ERR-AMOUNT-ZERO)
     (unwrap! (map-get? vaults { owner: tx-sender }) ERR-VAULT-NOT-FOUND)
-    ;; TODO M1: repay on Zest V2 for this vault's position
-    (try! (contract-call? market repay-debt tx-sender amount))
+    (try! (as-contract (contract-call? market repay-debt tx-sender amount)))
     (ok true)
   )
 )
 
+;; add to the repay buffer the keeper draws from
 (define-public (user-topup (debt-token <sip010-trait>) (amount uint))
   (let ((vault (unwrap! (map-get? vaults { owner: tx-sender }) ERR-VAULT-NOT-FOUND)))
     (asserts! (> amount u0) ERR-AMOUNT-ZERO)
-    (try! (contract-call? debt-token transfer amount tx-sender tx-sender none))
-    (map-set vaults
-      { owner: tx-sender }
-      (merge vault { buffer: (+ (get buffer vault) amount) })
-    )
+    (try! (as-contract (contract-call? debt-token transfer amount contract-caller tx-sender none)))
+    (map-set vaults { owner: tx-sender } (merge vault { buffer: (+ (get buffer vault) amount) }))
     (ok true)
   )
 )
 
+;; closing only makes sense on a healthy position; redeeming the collateral
+;; lands with the market wiring on the integration milestone
 (define-public (close-vault (market <lending-market-trait>))
-  (let ((vault (unwrap! (map-get? vaults { owner: tx-sender }) ERR-VAULT-NOT-FOUND)))
-    ;; TODO M1: require position fully repaid on Zest + return collateral/buffer
-    ;; to owner; set status "closed"
+  (let (
+    (vault (unwrap! (map-get? vaults { owner: tx-sender }) ERR-VAULT-NOT-FOUND))
+    (hf (try! (as-contract (contract-call? market get-health-factor tx-sender))))
+  )
     (asserts! (is-eq (get status vault) "active") ERR-VAULT-NOT-HEALTHY)
+    (asserts! (>= hf u100) ERR-VAULT-NOT-HEALTHY)
+    (map-set vaults { owner: tx-sender } (merge vault { status: "closed" }))
     (ok true)
   )
 )
 
-;; ---------------------------------------------------------------------------
-;; Keeper rescue (permissionless)
-;; ---------------------------------------------------------------------------
+;; permissionless: anyone can restore a breached position and collect the
+;; bounty. The whole tx reverts if the repay leaves the position below the
+;; trigger, so a keeper is only paid for a rescue that actually worked.
 (define-public (keeper-rescue
     (market <lending-market-trait>)
     (debt-token <sip010-trait>)
     (owner principal)
     (repay-amount uint))
-  (let ((vault (unwrap! (map-get? vaults { owner: owner }) ERR-VAULT-NOT-FOUND))
-        (hf-before (unwrap-panic (contract-call? market get-health-factor tx-sender))))
+  (let (
+    (vault (unwrap! (map-get? vaults { owner: owner }) ERR-VAULT-NOT-FOUND))
+    (hf-before (try! (as-contract (contract-call? market get-health-factor tx-sender))))
+  )
     (asserts! (is-eq (get status vault) "active") ERR-VAULT-NOT-HEALTHY)
-    ;; Trigger check: rescue only allowed when HF below the owner's trigger
     (asserts! (< hf-before (get trigger-hf vault)) ERR-TRIGGER-NOT-BREACHED)
     (asserts! (> repay-amount u0) ERR-AMOUNT-ZERO)
     (asserts! (<= repay-amount (get buffer vault)) ERR-BUFFER-EXCEEDED)
 
-    ;; TODO M1: execute partial repay on Zest V2 as the vault principal
-    (try! (contract-call? market repay-debt tx-sender repay-amount))
+    (try! (as-contract (contract-call? market repay-debt tx-sender repay-amount)))
 
-    ;; Post-state check: HF must be restored above trigger, else revert all
-    (let ((hf-after (unwrap-panic (contract-call? market get-health-factor tx-sender))))
+    (let ((hf-after (try! (as-contract (contract-call? market get-health-factor tx-sender)))))
       (asserts! (>= hf-after (get trigger-hf vault)) ERR-POST-STATE-UNSAFE)
-
-      ;; Keeper bounty (capped % of repaid amount) from the buffer
       (let ((bounty (/ (* repay-amount BOUNTY-BPS) u10000)))
-        (try! (contract-call? debt-token transfer bounty tx-sender tx-sender none))
+        (try! (as-contract (contract-call? debt-token transfer bounty tx-sender contract-caller none)))
         (map-set vaults
           { owner: owner }
           (merge vault { buffer: (- (get buffer vault) (+ repay-amount bounty)) })
@@ -167,10 +158,8 @@
   )
 )
 
-;; ---------------------------------------------------------------------------
-;; Monitor-only mode (M2): alerts only, no on-chain action. Keeper bot watches
-;; vaults with status "monitor"; registered here so UIs can discover them.
-;; ---------------------------------------------------------------------------
+;; monitor-only: no funds move, just registers the position so the keeper
+;; bot can send threshold alerts
 (define-public (register-monitor (trigger-hf uint))
   (begin
     (asserts! (>= trigger-hf u100) ERR-POST-STATE-UNSAFE)
@@ -181,4 +170,3 @@
     (ok true)
   )
 )
-

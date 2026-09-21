@@ -1,6 +1,6 @@
 [project]
 name = "stacks-shield-vaults"
-description = "Liquidation protection vaults for Stacks lending protocols — permissionless keepers, vault-held positions, bounty economy."
+description = "Liquidation protection vaults for Stacks lending protocols - permissionless keepers, vault-held positions, bounty economy."
 authors = []
 telemetry = true
 cache_dir = ".cache"

@@ -1,11 +1,11 @@
-# TECHNICAL SPEC — Shield Vaults v0.1
+# TECHNICAL SPEC - Shield Vaults v0.1
 Sep 21, 2026
 
 ## Goal
 Protect user borrow positions on Stacks lending protocols from liquidation
 via permissionless keepers, vault-held positions, and a bounty economy.
 
-## Scope (milestone 1–2)
+## Scope (milestone 1-2)
 - Protocol: Zest Stacks Market V2 (testnet → mainnet)
 - Pair: sBTC collateral → USDCx debt (STX collateral as secondary)
 - Granite: milestone 4 (stretch)
@@ -37,8 +37,8 @@ Component, contract, keeper-bot, lifecycle and sequence diagrams:
 
 ## Zest V2 integration facts (validated from public docs)
 - Health Factor < 1 → full liquidation eligible; partial slightly above 1
-- Per-pair thresholds (example sBTC→USDC): LTV-BORROW 60–70%, partial
-  liquidation 70–85%, full 75–90%; graduated penalties 5–10%
+- Per-pair thresholds (example sBTC→USDC): LTV-BORROW 60-70%, partial
+  liquidation 70-85%, full 75-90%; graduated penalties 5-10%
 - Protocol Deep Dive documents borrow call takes user as parameter:
   market.borrow(usdc-aid, 500, tx-sender, none) → vault-as-principal viable
 - Oracles: Pyth + DIA inside Zest's market contract; Shield keepers reuse
@@ -51,11 +51,11 @@ Component, contract, keeper-bot, lifecycle and sequence diagrams:
 
 ## Safety properties
 - Vault funds only ever move to: Zest market (deposit/borrow), the user
-  (withdrawals), keepers (bounty ≤ cap) — no other destinations
+  (withdrawals), keepers (bounty ≤ cap) - no other destinations
 - Buffer is capped (e.g. ≤10% of debt) so keeper bounty can never drain the
   vault; a rescue that fails its post-repay health check reverts atomically
 - All keeper calls validate post-state (HF restored ≥ trigger) before paying
-  bounty — Clarity post-conditions + in-contract checks
+  bounty - Clarity post-conditions + in-contract checks
 - No upgradability, no admin; informal community review before mainnet,
   formal audit targeted post-launch
 
