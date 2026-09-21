@@ -8,7 +8,7 @@ in milestones 2-4).
 
 ```mermaid
 flowchart TB
-    subgraph Users[" "]
+    subgraph "Users"
         B[Borrower]
         K[Keeper]
     end
@@ -110,6 +110,9 @@ stateDiagram-v2
     Active --> Closed : close-vault<br/>position fully repaid
     [*] --> Monitor : register-monitor
     Monitor --> Monitor : alerts only<br/>no on-chain action
+    Monitor --> [*] : unregister
+    Closed --> [*]
+```
 
 ## 5. Core flow - opening a protected vault
 
